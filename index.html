@@ -86,10 +86,37 @@
             <textarea id="json-input"></textarea>
             <button class="btn" onclick="copyRequestSchema()">Generate Request Schema</button>
             <button class="btn" onclick="copyResponseSchema()">Generate Response Schema</button>
+            <button class="btn" onclick="jsonErrorRemover()">Generate Valid Json</button>
             <div id="output-container"></div>
         </div>
 
         <script>
+
+            function jsonErrorRemover() {
+                // Get the JSON input
+                var jsonInput = document.getElementById("json-input").value.trim();
+
+                if (jsonInput) {
+                    try {
+                        // Parse the JSON
+                        var json = JSON.parse(jsonInput);
+
+                        var schema = fixJSONErrors(json);
+
+                        // Copy the schema to the clipboard
+                        copyToClipboard(schema);
+
+                        // Display the schema in the output container
+                        document.getElementById("output-container").innerHTML = '<div class="output success">' + schema + '</div>';
+                    } catch (error) {
+                        // If there's an error parsing the JSON, display the error message in the output container
+                        document.getElementById("output-container").innerHTML = '<div class="output error">' + error.message + '</div>';
+                    }
+                } else {
+                    // If the JSON input is empty, display a message in the output container
+                    document.getElementById("output-container").innerHTML = '<div class="output error">Please enter a valid JSON input</div>';
+                }
+            }
             function copyRequestSchema() {
                 // Get the JSON input
                 var jsonInput = document.getElementById("json-input").value.trim();
@@ -256,6 +283,57 @@
 
                 return JSON.stringify(schema);
             }
+            // Json Error Remover
+            function fixJSONErrors(json) {
+                if (typeof json !== 'string') {
+                    return null; // input is not a string
+                }
+
+                try {
+                    JSON.parse(json);
+                    return json; // JSON is valid, return original string
+                } catch (e) {
+                    let fixedJSON = json.trim();
+
+                    // remove comments
+                    fixedJSON = fixedJSON.replace(/\/\*[\s\S]*?\*\/|\/\/.*/g, '');
+
+                    // wrap keys in double quotes
+                    fixedJSON = fixedJSON.replace(/(['"])?([a-zA-Z0-9_]+)(['"])?:/g, '"$2": ');
+
+                    // fix single quotes
+                    fixedJSON = fixedJSON.replace(/'/g, '"');
+
+                    // fix trailing commas
+                    fixedJSON = fixedJSON.replace(/,\s*([\]}])/g, '$1');
+
+                    // handle missing or extra braces/brackets
+                    const countOpeningBraces = fixedJSON.split('{').length - 1;
+                    const countClosingBraces = fixedJSON.split('}').length - 1;
+                    const countOpeningBrackets = fixedJSON.split('[').length - 1;
+                    const countClosingBrackets = fixedJSON.split(']').length - 1;
+
+                    if (countOpeningBraces > countClosingBraces) {
+                        fixedJSON += '}'.repeat(countOpeningBraces - countClosingBraces);
+                    } else if (countOpeningBraces < countClosingBraces) {
+                        fixedJSON = '{'.repeat(countClosingBraces - countOpeningBraces) + fixedJSON;
+                    }
+
+                    if (countOpeningBrackets > countClosingBrackets) {
+                        fixedJSON += ']'.repeat(countOpeningBrackets - countClosingBrackets);
+                    } else if (countOpeningBrackets < countClosingBrackets) {
+                        fixedJSON = '['.repeat(countClosingBrackets - countOpeningBrackets) + fixedJSON;
+                    }
+
+                    try {
+                        JSON.parse(fixedJSON);
+                        return JSON.parse(fixedJSON); // fixed JSON is valid, return fixed string
+                    } catch (e) {
+                        return null; // could not fix JSON
+                    }
+                }
+            }
+
         </script>
     </body>
 
