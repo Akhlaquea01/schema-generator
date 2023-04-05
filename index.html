@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+
+    <head>
+        <meta charset="UTF-8">
+        <title>Schema Generator By Akhlaque</title>
+        <style>
+            body {
+                background-color: #f5f5f5;
+                font-family: Arial, sans-serif;
+                font-size: 14px;
+            }
+
+            .container {
+                margin: 50px auto;
+                padding: 20px;
+                background-color: #fff;
+                border-radius: 10px;
+                box-shadow: 0px 5px 10px rgba(0, 0, 0, 0.1);
+                width: 80%;
+                max-width: 800px;
+            }
+
+            h1 {
+                font-size: 36px;
+                font-weight: bold;
+                margin-bottom: 20px;
+                text-align: center;
+                color: #333;
+            }
+
+            textarea {
+                width: 100%;
+                min-height: 200px;
+                padding: 10px;
+                border: 1px solid #ccc;
+                border-radius: 5px;
+                font-size: 14px;
+                resize: none;
+                margin-bottom: 20px;
+            }
+
+            .btn {
+                background-color: #333;
+                color: #fff;
+                padding: 10px 20px;
+                border-radius: 5px;
+                cursor: pointer;
+                font-size: 14px;
+                transition: all 0.2s ease-in-out;
+            }
+
+            .btn:hover {
+                background-color: #fff;
+                color: #333;
+                border: 1px solid #333;
+            }
+
+            .output {
+                background-color: #f9f9f9;
+                border: 1px solid #ccc;
+                border-radius: 5px;
+                padding: 10px;
+                margin-bottom: 20px;
+                white-space: pre-wrap;
+            }
+
+            .success {
+                background-color: #c8e6c9;
+                border: 1px solid #81c784;
+                color: #1b5e20;
+            }
+
+            .error {
+                background-color: #ffcdd2;
+                border: 1px solid #e57373;
+                color: #c62828;
+            }
+        </style>
+    </head>
+
+    <body>
+        <div class="container">
+            <h1>Schema Generator</h1>
+            <p>Paste your JSON in the text area below:</p>
+            <textarea id="json-input"></textarea>
+            <button class="btn" onclick="copyRequestSchema()">Generate Request Schema</button>
+            <button class="btn" onclick="copyResponseSchema()">Generate Response Schema</button>
+            <div id="output-container"></div>
+        </div>
+
+        <script>
+            function copyRequestSchema() {
+                // Get the JSON input
+                var jsonInput = document.getElementById("json-input").value.trim();
+
+                if (jsonInput) {
+                    try {
+                        // Parse the JSON
+                        var json = JSON.parse(jsonInput);
+
+                        var schema = generateRequestSchema(json);
+
+                        // Copy the schema to the clipboard
+                        copyToClipboard(schema);
+
+                        // Display the schema in the output container
+                        document.getElementById("output-container").innerHTML = '<div class="output success">' + schema + '</div>';
+                    } catch (error) {
+                        // If there's an error parsing the JSON, display the error message in the output container
+                        document.getElementById("output-container").innerHTML = '<div class="output error">' + error.message + '</div>';
+                    }
+                } else {
+                    // If the JSON input is empty, display a message in the output container
+                    document.getElementById("output-container").innerHTML = '<div class="output error">Please enter a valid JSON input</div>';
+                }
+            }
+            function copyResponseSchema() {
+                // Get the JSON input
+                var jsonInput = document.getElementById("json-input").value.trim();
+
+                if (jsonInput) {
+                    try {
+                        // Parse the JSON
+                        var json = JSON.parse(jsonInput);
+
+                        var schema = generateResponseSchema(json);
+
+                        // Copy the schema to the clipboard
+                        copyToClipboard(schema);
+
+                        // Display the schema in the output container
+                        document.getElementById("output-container").innerHTML = '<div class="output success">' + schema + '</div>';
+                    } catch (error) {
+                        // If there's an error parsing the JSON, display the error message in the output container
+                        document.getElementById("output-container").innerHTML = '<div class="output error">' + error.message + '</div>';
+                    }
+                } else {
+                    // If the JSON input is empty, display a message in the output container
+                    document.getElementById("output-container").innerHTML = '<div class="output error">Please enter a valid JSON input</div>';
+                }
+            }
+            function copyToClipboard(text) {
+                // Create a temporary input element
+                var tempInput = document.createElement("textarea");
+                tempInput.value = text;
+                document.body.appendChild(tempInput);
+
+                // Select the text and copy it to the clipboard
+                tempInput.select();
+                document.execCommand("copy");
+
+                // Remove the temporary input element
+                document.body.removeChild(tempInput);
+            }
+
+            // request Schema
+            function generateRequestSchema(json) {
+                const schema = {};
+
+                for (const [ key, value ] of Object.entries(json)) {
+                    if (Array.isArray(value)) {
+                        if (value.length === 0) {
+                            // If the array is empty, we cannot infer the schema of its items
+                            schema[ key ] = `rm.joi.array().items(any()).label('isource-label-${key}__')`;
+                        } else {
+                            // Check if all items in the array are strings
+                            const areAllItemsStrings = value.every(item => typeof item === 'string');
+                            const areAllItemsnumber = value.every(item => typeof item === 'number');
+                            if (areAllItemsStrings) {
+                                // schema of the array as a single string value
+                                schema[ key ] = `rm.joi.string().allow('', null).example('${value.join(', ')}').label('isource-label-${key}__')`;
+                            } else if (areAllItemsnumber) {
+                                // schema of the array as a single number value
+                                schema[ key ] = `rm.joi.number().allow('', null).example('${value.join(', ')}').label('isource-label-${key}__')`;
+
+                            } else {
+                                // Recursively generate the schema for the first item in the array
+                                const arrayItemSchema = generateRequestSchema(value[ 0 ]);
+                                schema[ key ] = `rm.joi.array().items(${JSON.stringify(arrayItemSchema)}).label('isource-label-${key}__')`;
+                            }
+                        }
+                    } else if (typeof value === 'object' && value !== null) {
+                        // Recursively generate the schema for the object
+                        const nestedSchema = generateRequestSchema(value);
+                        schema[ key ] = `rm.joi.object().keys(${JSON.stringify(nestedSchema)}).label('isource-label-${key}__')`;
+                    } else {
+                        // Infer the schema of the value based on its type
+                        let joiType, example;
+                        if (typeof value === 'number') {
+                            joiType = 'number()';
+                            example = value;
+                        } else if (typeof value === 'boolean') {
+                            joiType = 'boolean()';
+                            example = value;
+                        } else {
+                            joiType = 'string()';
+                            example = typeof value === 'string' ? `'${value}'` : JSON.stringify(value);
+                        }
+                        schema[ key ] = `rm.joi.${joiType}.allow('', null).example(${example}).label('isource-label-${key}__')`;
+                    }
+                }
+
+                return JSON.stringify(schema);
+            }
+
+            // Response Schema
+            function generateResponseSchema(jsonObj) {
+                const schema = { type: "object", properties: {} };
+
+                for (const [ key, value ] of Object.entries(jsonObj)) {
+                    let type;
+                    if (typeof value === "string") {
+                        type = "string";
+                    } else if (typeof value === "number") {
+                        type = "number";
+                    } else if (typeof value === "boolean") {
+                        type = "boolean";
+                    } else if (value instanceof Date) {
+                        type = "string";
+                        schema.format = "date-time";
+                    } else if (value instanceof RegExp) {
+                        type = "string";
+                        schema.pattern = value.toString();
+                    } else if (Array.isArray(value)) {
+                        if (value.length === 0) {
+                            // Empty array
+                            type = "array";
+                            schema.properties[ key ] = { type, items: {} };
+                        } else if (typeof value[ 0 ] === "object" && value[ 0 ] !== null) {
+                            // Array of objects
+                            const itemsSchema = generateResponseSchema(value[ 0 ]);
+                            type = "array";
+                            schema.properties[ key ] = { type, items: itemsSchema };
+                        } else {
+                            // Array of values
+                            type = "array";
+                            schema.properties[ key ] = { type, items: { type: typeof value[ 0 ] } };
+                        }
+                    } else if (typeof value === "object" && value !== null) {
+                        // Nested object
+                        const objectSchema = generateResponseSchema(value);
+                        type = "object";
+                        schema.properties[ key ] = {
+                            type,
+                            properties: objectSchema.properties,
+                        };
+                    } else {
+                        continue; // Skip unsupported value types
+                    }
+
+                    if (type !== "array" && type !== "object") {
+                        schema.properties[ key ] = { type };
+                    }
+                }
+
+                return JSON.stringify(schema);
+            }
+        </script>
+    </body>
+
+</html>
